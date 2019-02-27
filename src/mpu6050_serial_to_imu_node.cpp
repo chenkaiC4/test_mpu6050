@@ -8,6 +8,7 @@
 #include <string>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
+#include <iostream>
 
 bool zero_orientation_set = false;
 
@@ -41,7 +42,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "mpu6050_serial_to_imu_node");
 
   ros::NodeHandle private_node_handle("~");
-  private_node_handle.param<std::string>("port", port, "/dev/ttyACM0");
+  private_node_handle.param<std::string>("port", port, "/dev/ttyUSB0");
   private_node_handle.param<std::string>("tf_parent_frame_id", tf_parent_frame_id, "imu_base");
   private_node_handle.param<std::string>("tf_frame_id", tf_frame_id, "imu_link");
   private_node_handle.param<std::string>("frame_id", frame_id, "imu_link");
@@ -56,7 +57,7 @@ int main(int argc, char** argv)
   ros::Publisher imu_temperature_pub = nh.advertise<sensor_msgs::Temperature>("temperature", 50);
   ros::ServiceServer service = nh.advertiseService("set_zero_orientation", set_zero_orientation);
 
-  ros::Rate r(200); // 200 hz
+  ros::Rate r(20); // 200 hz
 
   sensor_msgs::Imu imu;
 
@@ -82,24 +83,31 @@ int main(int argc, char** argv)
   std::string input;
   std::string read;
 
+  std::cout << "runing..."<<std::endl;
+
   while(ros::ok())
   {
     try
     {
       if (ser.isOpen())
       {
+       
         // read string from serial device
         if(ser.available())
         {
           read = ser.read(ser.available());
-          ROS_DEBUG("read %i new characters from serial port, adding to %i characters of old input.", (int)read.size(), (int)input.size());
           input += read;
+          // std::cout << "read: " << (int)read.size() << "data: " << read << std::endl;
+
           while (input.length() >= 28) // while there might be a complete package in input
           {
+
             //parse for data packets
-            data_packet_start = input.find("$\x03");
+            data_packet_start = input.find("U");
+            
             if (data_packet_start != std::string::npos)
             {
+              ROS_INFO("Package Extracts....");
               ROS_DEBUG("found possible start of data packet at position %d", data_packet_start);
               if ((input.length() >= data_packet_start + 28) && (input.compare(data_packet_start + 26, 2, "\r\n") == 0))  //check if positions 26,27 exist, then test values
               {
@@ -188,7 +196,7 @@ int main(int argc, char** argv)
                 imu.linear_acceleration.x = axf;
                 imu.linear_acceleration.y = ayf;
                 imu.linear_acceleration.z = azf;
-
+                std::cout << "publish imu...." << imu << std::endl;
                 imu_pub.publish(imu);
 
                 // publish temperature message
@@ -208,6 +216,7 @@ int main(int argc, char** argv)
               }
               else
               {
+                std::cout << "xxxx" << std::endl;
                 if (input.length() >= data_packet_start + 28)
                 {
                   input.erase(0, data_packet_start + 1); // delete up to false data_packet_start character so it is not found again
@@ -233,7 +242,7 @@ int main(int argc, char** argv)
         try
         {
           ser.setPort(port);
-          ser.setBaudrate(115200);
+          ser.setBaudrate(9600);
           serial::Timeout to = serial::Timeout::simpleTimeout(1000);
           ser.setTimeout(to);
           ser.open();
