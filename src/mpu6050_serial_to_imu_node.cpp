@@ -101,7 +101,7 @@ int main(int argc, char **argv)
             {
                 if (ser.available())
                 {
-                    // read 2 byte data to find header
+                    // read 1 byte data to find header
                     read_size = ser.read(header, 1);
                     if (read_size != 1)
                     {
